@@ -1,0 +1,331 @@
+name: Node - Docker Build & Push
+
+on:
+  workflow_call:
+    inputs:
+
+      node-version:
+        description: |
+          The node version you want to use to build app
+        default: '16'
+        required: false
+        type: string
+
+      node-cache-dependency-path:
+        description: |
+          The node cache dependency path
+        default: ''
+        required: false
+        type: string
+
+      use-yarn-as-package-manager:
+        description: |
+          Use yarn instead of npm as package manager
+        default: false
+        required: false
+        type: boolean
+
+      node-install-command:
+        description: |
+          The command needed to install dependecies
+        required: false
+        type: string
+
+      node-build-command:
+        description: |
+          The command needed to build the app
+        default: 'build'
+        required: false
+        type: string
+
+      prune-dev-dependecies:
+        description: |
+          Need remove dev dependecies after build phase
+        default: false
+        required: false
+        type: boolean
+
+      docker-image-name:
+        description: |
+          The docker image name to be uploaded
+        required: true
+        type: string
+
+      docker-image-repository:
+        description: |
+          Artifactory docker registry where images will be uploaded
+          example: arinpdockerrgdigital001.azurecr.io
+        default: 'arinpdockerrgdigital001.azurecr.io'
+        required: false
+        type: string
+
+      docker-image-folder:
+        description: |
+          The folder in which you docker image will be stored.
+          eg. in "arinpdockerrgdigital001.azurecr.io/web/image:tag" image tag "web" is the folder
+          It ensures minimum conflicts possible when pulling an image from mirror docker registry (docker-public)
+        required: false
+        type: string
+
+      docker-image-tag:
+        description: |
+          The tag of the docker image
+        required: false
+        type: string
+
+      docker-context-path:
+        description: |
+          Context path of the Dockerfile
+        required: false
+        default: '.'
+        type: string
+
+      dockerfile-path:
+        description: |
+          The dockerfile path for build
+        default: './Dockerfile'
+        required: false
+        type: string
+
+      docker-build-args:
+        description: |
+          List of build-time variables
+          example:
+            NODE_VERSION=16.13.0
+            APP_VERSION=1.0.1
+        required: false
+        type: string
+
+      registry-user:
+        description: |
+          The name of your Jfrog service account with write access on your docker registry.
+          Could be stored in Vault (DOCKER_WRITER_USER_NAME secret key)
+        required: false
+        type: string
+
+      push-image:
+        description: |
+          By default set to true, set it to false to have a dry run
+        default: 'true'
+        required: false
+        type: string
+
+      additional-env-vars:
+        description: |
+          listing environment variables to set for testing.
+          example:
+            additional-env-vars: |
+              PHRASE_TAGS=a-tag,another-one
+              PHRASE_FOLDER=./
+        default: ""
+        required: false
+        type: string
+
+      working-directory:
+        description: |
+          set the working directory of action, it is the derectory where your package.json is
+        required: false
+        default: "."
+        type: string
+
+    secrets:
+      registry-password:
+        description: |
+        required: true
+
+      github-token:
+        description: |
+        required: true
+
+    outputs:
+
+      docker-image-version:
+        description: "The version of the docker image. For `docker/metadata-action` this is the main tag of the image"
+        value: ${{ jobs.node-docker-build-push.outputs.version-created }}
+
+      docker-image-tags:
+        description: "The tags of the docker images. For `docker/metadata-action` this is the list of docker images created"
+        value: ${{ jobs.node-docker-build-push.outputs.tags-created }}
+
+jobs:
+  node-docker-build-push:
+    runs-on: ubuntu-latest
+    name: Node - Docker build & Push
+    env:
+      DOCKER_IMAGE_REPOSITORY: ${{ inputs.docker-image-repository }}
+      DOCKER_WRITER_USER_NAME: ${{ inputs.registry-user }}
+      DOCKER_WRITER_USER_TOKEN: ${{ secrets.registry-password }}
+      DOCKER_IMAGE_FOLDER: ${{ inputs.docker-image-folder }}
+      IMAGE_NAME: ${{ inputs.docker-image-name }}
+      DOCKER_BUILD_ARGS: ${{ inputs.docker-build-args }}
+
+
+    outputs:
+      tags-created: ${{ steps.meta.outputs.tags }}
+      version-created: ${{ steps.meta.outputs.version }}
+
+    steps:
+
+
+      - name: 🎬 Initialize environment variables
+        if: inputs.additional-env-vars
+        run: |
+          echo "${{ inputs.additional-env-vars }}" >> $GITHUB_ENV
+
+      ######################
+      # CHECKOUT AND CACHE #
+      ######################
+
+      - name: ⬇️ Checkout
+        uses: actions/checkout@v3
+
+      - name: 🙈 Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      ########
+      # NODE #
+      ########
+
+      - name: ⚙️ Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ steps.setup.outputs.cache }}
+          cache-dependency-path: ${{ steps.setup.outputs.cache-dependency-path }}
+
+      - name: 📝 Generate npmrc
+        if: ${{ env.NODE_AUTH_TOKEN }}
+        run: |
+          if [[ -f '.github/.npmrc' ]]
+            then
+              echo "Copy specific .npmrc file"
+              cp .github/.npmrc .npmrc
+            else
+              echo "Generate .npmrc file"
+              echo '//url-regitry/api/npm/npm/:_auth=${{ env.NODE_AUTH_TOKEN }}' > .npmrc
+              echo 'registry=https://url-registry/api/npm/npm/'  >> .npmrc
+              echo 'always-auth=true'  >> .npmrc
+          fi
+
+      - name: ⬇️ Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [[ "${{ inputs.use-yarn-as-package-manager }}" == "true" ]]
+            then
+              npm install -g yarn
+              if [[ "${{ inputs.node-install-command }}" == "" ]]
+                then yarn install --frozen-lockfile
+                else yarn ${{ inputs.node-install-command }}
+              fi
+            else
+              if [[ "${{ inputs.node-install-command }}" == "" ]]
+                then npm ci
+                else npm ${{ inputs.node-install-command }}
+              fi
+          fi
+
+      - name: 🛠 Build app
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [[ "${{ inputs.use-yarn-as-package-manager }}" == "true" ]]
+            then yarn run ${{ inputs.node-build-command }}
+            else npm run ${{ inputs.node-build-command }}
+          fi
+
+      - name: 🧹 Remove dev dependecies
+        if: ${{ inputs.prune-dev-dependecies }}
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [[ "${{ inputs.use-yarn-as-package-manager }}" == "true" ]]
+            then yarn install --production --ignore-scripts --prefer-offline
+            else npm prune --production
+          fi
+
+      ##########
+      # DOCKER #
+      ##########
+
+      - name: ⚙️ Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: ⚙️ Set up Docker Context for Buildx
+        id: buildx-context
+        run: |
+          docker context create builders
+
+      - name: ⚙️ Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          version: latest
+          endpoint: builders
+
+      - name: 🙈 Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: 🔑 Docker Login
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_IMAGE_REPOSITORY }}
+          username: ${{ env.DOCKER_WRITER_USER_NAME }}
+          password: ${{ env.DOCKER_WRITER_USER_TOKEN }}
+
+      - name: 📝 Define image full name
+        run: |-
+          if [[ "${{ env.DOCKER_IMAGE_FOLDER }}" == "" ]]; \
+          then echo "IMAGE_FULL_NAME=${{ env.DOCKER_IMAGE_REPOSITORY }}/\
+          ${{ env.IMAGE_NAME }}" >> $GITHUB_ENV; \
+          else echo "IMAGE_FULL_NAME=${{ env.DOCKER_IMAGE_REPOSITORY }}/\
+          ${{ env.DOCKER_IMAGE_FOLDER }}/\
+          ${{ env.IMAGE_NAME }}" >> $GITHUB_ENV; \
+          fi;
+
+      - name: 📝 Define build args
+        id: build-args
+        run: |
+          ARGS="${{ inputs.docker-build-args }}"
+          ARGS="${ARGS//'%'/'%25'}"
+          ARGS="${ARGS//$'\n'/'%0A'}"
+          ARGS="${ARGS//$'\r'/'%0D'}"
+          echo "::set-output name=build-args::${ARGS}"
+
+      - name: 📚 Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.IMAGE_FULL_NAME }}
+          github-token: ${{ secrets.github-token }}
+          tags: |
+            type=raw,value=${{ inputs.docker-image-tag }}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: 🏗 Build and push
+        id: docker-build-push
+        uses: docker/build-push-action@v3
+        with:
+          context: ${{ inputs.docker-context-path }}
+          push: ${{ inputs.push-image }}
+          file: ${{ inputs.dockerfile-path }}
+          builder: ${{ steps.buildx.outputs.name }}
+          tags: ${{ steps.meta.outputs.tags}}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
+          build-args: ${{ steps.build-args.outputs.build-args }}
+
+      - name: ❌ Logout from jfrog repositories
+        run: |
+          docker logout ${{ env.DOCKER_IMAGE_REPOSITORY }}
