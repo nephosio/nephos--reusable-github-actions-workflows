@@ -1,0 +1,244 @@
+name: Java - Docker Build & Push
+
+on:
+  workflow_call:
+    inputs:
+
+      java-version:
+        description: |
+          The java version you need to use for running your tests,
+          see [here](https://github.com/actions/setup-java#supported-version-syntax)
+          to have all available version
+        default: '11'
+        required: false
+        type: string
+
+      java-distribution:
+        description: |
+          The java distribution you need to use for running your tests,
+          see [here](https://github.com/actions/setup-java#supported-distributions)
+          to have all available distribution
+        default: 'adopt'
+        required: false
+        type: string
+
+      java-build-cmd:
+        description: |
+          The command needed to build the app
+        default: 'mvn --batch-mode --update-snapshots verify -DskipTests'
+        required: false
+        type: string
+
+      docker-image-name:
+        description: |
+          The docker image name to be uploaded
+        required: true
+        type: string
+
+      docker-image-repository:
+        description: |
+          Artifactory docker registry where images will be uploaded
+          example: arinpdockerrgdigital001.azurecr.io
+        default: 'arinpdockerrgdigital001.azurecr.io'
+        required: false
+        type: string
+
+      docker-image-folder:
+        description: |
+          The folder in which you docker image will be stored.
+          eg. in "arinpdockerrgdigital001.azurecr.io/web/image:tag" image tag "web" is the folder
+          It ensures minimum conflicts possible when pulling an image from mirror docker registry (docker-public)
+        required: false
+        type: string
+
+      docker-image-tag:
+        description: |
+          The tag of the docker image
+        required: false
+        type: string
+
+      docker-context:
+        description: |
+          The docker file context for build
+        default: './'
+        required: false
+        type: string
+
+      dockerfile-path:
+        description: |
+          The dockerfile path for build
+        default: './Dockerfile'
+        required: false
+        type: string
+
+      docker-build-args:
+        description: |
+          List of build-time variables
+          example:
+            NODE_VERSION=16.13.0
+            APP_VERSION=1.0.1
+        required: false
+        type: string
+
+      registry-user:
+        description: |
+          The name of your Jfrog service account with write access on your docker registry.
+          Could be stored in Vault (DOCKER_WRITER_USER_NAME secret key)
+        required: false
+        type: string
+
+      push-image:
+        description: |
+          By default set to true, set it to false to have a dry run
+        default: 'true'
+        required: false
+        type: string
+
+    secrets:
+      registry-password:
+        description: |
+        required: true
+
+      github-token:
+        description: |
+        required: true
+
+
+    outputs:
+      docker-image-version:
+        description: "The version of the docker image. For `docker/metadata-action` this is the main tag of the image"
+        value: ${{ jobs.java-docker-build-push.outputs.version-created }}
+
+      docker-image-tags:
+        description: "The tags of the docker images. For `docker/metadata-action` this is the list of docker images created"
+        value: ${{ jobs.java-docker-build-push.outputs.tags-created }}
+
+jobs:
+  java-docker-build-push:
+    runs-on: ubuntu-latest
+    name: Java - Docker build & Push
+    env:
+      DOCKER_IMAGE_REPOSITORY: ${{ inputs.docker-image-repository }}
+      DOCKER_IMAGE_FOLDER: ${{ inputs.docker-image-folder }}
+      IMAGE_NAME: ${{ inputs.docker-image-name }}
+      DOCKER_BUILD_ARGS: ${{ inputs.docker-build-args }}
+      DOCKER_WRITER_USER_NAME: ${{ inputs.registry-user }}
+      DOCKER_WRITER_USER_TOKEN: ${{ secrets.registry-password }}
+      DEPENDENCIES_CACHE_PATH: "${{ github.workspace }}/.m2"
+
+    outputs:
+      tags-created: ${{ steps.meta.outputs.tags }}
+      version-created: ${{ steps.meta.outputs.version }}
+
+    steps:
+      ######################
+      # CHECKOUT AND CACHE #
+      ######################
+
+      - name: ⬇️ Checkout
+        uses: actions/checkout@v3
+
+      - name: 🙈 Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.DEPENDENCIES_CACHE_PATH }}
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-maven
+
+      ########
+      # JAVA #
+      ########
+
+      - name: ⚙️ Set up Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: ${{ inputs.java-distribution }}
+
+      - name: 🛠 Build app
+        run: ${{ inputs.java-build-cmd }}
+
+      ##########
+      # DOCKER #
+      ##########
+
+      - name: ⚙️ Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: ⚙️ Set up Docker Context for Buildx
+        id: buildx-context
+        run: |
+          docker context create builders
+
+      - name: ⚙️ Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          version: latest
+          endpoint: builders
+
+      - name: 🙈 Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: 🔑 Docker Login
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.DOCKER_IMAGE_REPOSITORY }}
+          username: ${{ env.DOCKER_WRITER_USER_NAME }}
+          password: ${{ env.DOCKER_WRITER_USER_TOKEN }} # pragma: allowlist secret
+
+      - name: 📝 Define image full name
+        run: |-
+          if [[ "${{ env.DOCKER_IMAGE_FOLDER }}" == "" ]]; \
+          then echo "IMAGE_FULL_NAME=${{ env.DOCKER_IMAGE_REPOSITORY }}/\
+          ${{ env.IMAGE_NAME }}" >> $GITHUB_ENV; \
+          else echo "IMAGE_FULL_NAME=${{ env.DOCKER_IMAGE_REPOSITORY }}/\
+          ${{ env.DOCKER_IMAGE_FOLDER }}/\
+          ${{ env.IMAGE_NAME }}" >> $GITHUB_ENV; \
+          fi;
+
+      - name: 📝 Define build args
+        id: build-args
+        run: |
+          ARGS="${{ inputs.docker-build-args }}"
+          ARGS="${ARGS//'%'/'%25'}"
+          ARGS="${ARGS//$'\n'/'%0A'}"
+          ARGS="${ARGS//$'\r'/'%0D'}"
+          echo "::set-output name=build-args::${ARGS}"
+
+      - name: 📚 Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.IMAGE_FULL_NAME }}
+          github-token: ${{ secrets.github-token }}
+          tags: |
+            type=raw,value=${{ inputs.docker-image-tag }}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: 🏗 Build & push
+        id: docker-build-push
+        uses: docker/build-push-action@v3
+        with:
+          context: ${{ inputs.docker-context }}
+          file: ${{ inputs.dockerfile-path }}
+          builder: ${{ steps.buildx.outputs.name }}
+          push: ${{ inputs.push-image }}
+          tags: ${{ steps.meta.outputs.tags}}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
+          build-args: ${{ steps.build-args.outputs.build-args }}
+
+
+      - name: ❌ Logout from jfrog repositories
+        run: |
+          docker logout ${{ env.DOCKER_IMAGE_REPOSITORY }}
