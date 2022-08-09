@@ -279,6 +279,10 @@ jobs:
           registry: ${{ env.DOCKER_IMAGE_REPOSITORY }}
           username: _json_key_base64
           password: ${{ env.DOCKER_WRITER_USER_TOKEN }} # pragma: allowlist secret
+          
+      - name: test
+        run: |-
+         docker buildx build  -t europe-west9-docker.pkg.dev/nephos-334613/nephos-np/nephos:dev --push .
 
 
       - name: 📝 Define image full name
