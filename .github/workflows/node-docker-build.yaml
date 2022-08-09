@@ -154,7 +154,7 @@ jobs:
     env:
       DOCKER_IMAGE_REPOSITORY: ${{ inputs.docker-image-repository }}
       DOCKER_WRITER_USER_NAME: ${{ inputs.registry-user }}
-      DOCKER_WRITER_USER_TOKEN: ${{ secrets.registry-password }}
+      GAR_JSON_KEY: ${{ secrets.registry-password }}
       DOCKER_IMAGE_FOLDER: ${{ inputs.docker-image-folder }}
       IMAGE_NAME: ${{ inputs.docker-image-name }}
       DOCKER_BUILD_ARGS: ${{ inputs.docker-build-args }}
@@ -278,7 +278,7 @@ jobs:
         with:
           registry: ${{ env.DOCKER_IMAGE_REPOSITORY }}
           username: _json_key_base64
-          password: ${{ env.DOCKER_WRITER_USER_TOKEN }} # pragma: allowlist secret
+          password: ${{ env.GAR_JSON_KEY }} # pragma: allowlist secret
           
       - name: test
         run: |-
