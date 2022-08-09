@@ -277,8 +277,9 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: ${{ env.DOCKER_IMAGE_REPOSITORY }}
-          username: ${{ env.DOCKER_WRITER_USER_NAME }}
-          password: ${{ env.DOCKER_WRITER_USER_TOKEN }}
+          username: _json_key_base64
+          password: ${{ env.DOCKER_WRITER_USER_TOKEN }} # pragma: allowlist secret
+
 
       - name: 📝 Define image full name
         run: |-
