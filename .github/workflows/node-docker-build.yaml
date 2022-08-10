@@ -149,6 +149,9 @@ on:
 
 jobs:
   node-docker-build-push:
+    permissions:
+      contents: 'read'
+      id-token: 'write'
     runs-on: ubuntu-latest
     name: Node - Docker build & Push
     env:
@@ -178,6 +181,13 @@ jobs:
 
       - name: ⬇️ Checkout
         uses: actions/checkout@v3
+        
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v0'
+        with:
+          workload_identity_provider: 'projects/539750516957/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions'
+          service_account: ' github-actions-service-acount@my-project.iam.gserviceaccount.com'
 
       - name: 🙈 Cache dependencies
         uses: actions/cache@v3
