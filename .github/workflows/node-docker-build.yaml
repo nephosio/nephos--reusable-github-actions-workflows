@@ -276,7 +276,7 @@ jobs:
       - name: 🔑 Docker Login
         run: |-
          echo ${{ env.GAR_JSON_KEY }} | docker login -u _json_key_base64 --password-stdin \
-              env.DOCKER_IMAGE_REPOSITORY
+              ${{ env.DOCKER_IMAGE_REPOSITORY }}
           
       - name: test
         run: |-
