@@ -274,11 +274,9 @@ jobs:
             ${{ runner.os }}-buildx-
 
       - name: 🔑 Docker Login
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ env.DOCKER_IMAGE_REPOSITORY }}
-          username: _json_key_base64
-          password: ${{ env.GAR_JSON_KEY }} # pragma: allowlist secret
+        run: |-
+         echo ${{ env.GAR_JSON_KEY }} | docker login -u _json_key_base64 --password-stdin \
+              env.DOCKER_IMAGE_REPOSITORY
           
       - name: test
         run: |-
