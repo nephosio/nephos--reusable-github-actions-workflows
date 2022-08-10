@@ -188,7 +188,7 @@ jobs:
         with:
           workload_identity_provider: 'projects/539750516957/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions'
           token_format: 'access_token'
-          service_account: ' github-actions-service-acount@my-project.iam.gserviceaccount.com'
+          service_account: 'github-actions-service-acount@nephos-334613.iam.gserviceaccount.com'
 
       - name: 🙈 Cache dependencies
         uses: actions/cache@v3
