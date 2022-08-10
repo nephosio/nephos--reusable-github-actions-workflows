@@ -284,9 +284,12 @@ jobs:
             ${{ runner.os }}-buildx-
 
       - name: 🔑 Docker Login
-        run: |-
-         echo ${{ env.GAR_JSON_KEY }} | docker login -u _json_key_base64 --password-stdin \
-              ${{ env.DOCKER_IMAGE_REPOSITORY }}
+        uses: docker/login-action@v2
+        with:
+          registry: europe-west9-docker-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
           
       - name: test
         run: |-
