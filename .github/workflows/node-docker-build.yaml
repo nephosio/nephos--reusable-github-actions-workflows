@@ -286,17 +286,24 @@ jobs:
       - name: configure docker
         run: |-
           gcloud auth configure-docker europe-west9-docker.pkg.dev
-      - name: 🔑 Docker Login
-        uses: docker/login-action@v2
-        with:
-          registry: europe-west9-docker-docker.pkg.dev
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
+     # - name: 🔑 Docker Login
+      #  uses: docker/login-action@v2
+       # with:
+        #  registry: europe-west9-docker-docker.pkg.dev
+         # username: oauth2accesstoken
+          #password: ${{ steps.auth.outputs.access_token }}
 
-          
+      - name: test1
+        run: |-
+         docker buildx build  -t eu.gcr.io/nephos-334613/nephos:dev --push .
+      
       - name: test
         run: |-
          docker buildx build  -t europe-west9-docker.pkg.dev/nephos-334613/nephos-np/nephos:dev --push .
+     
+      - name: test3
+        run: |-
+         docker buildx build  -t eu.gcr.io/nephos-334613/nephos/nephos:dev --push .
 
 
       - name: 📝 Define image full name
