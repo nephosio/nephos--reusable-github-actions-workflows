@@ -264,7 +264,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
       
-      - id: auth
+      - id: 🔑  Google cloud auth
         name: Authenticate with Google Cloud
         uses: google-github-actions/auth@v0
         with:
@@ -272,17 +272,12 @@ jobs:
           workload_identity_provider: projects/539750516957/locations/global/workloadIdentityPools/github-actions/providers/github-actions-provider
           service_account: github-actions-service-account@nephos-334613.iam.gserviceaccount.com
           access_token_lifetime: 300s
-          
-      #- name: 🔑 Docker Login
-       # uses: docker/login-action@v2
-        #with:
-         # registry: europe-west9-docker-docker.pkg.dev
-          #username: oauth2accesstoken
-          #password: ${{ steps.auth.outputs.access_token }}
+      
       - name: 🔑 Docker Login
         run: |-
           gcloud auth configure-docker \
-          europe-west1-docker.pkg.dev
+          ${{ env.DOCKER_IMAGE_REPOSITORY }}
+          
       - name: 📝 Define image full name
         run: |-
           if [[ "${{ env.DOCKER_IMAGE_FOLDER }}" == "" ]]; \
