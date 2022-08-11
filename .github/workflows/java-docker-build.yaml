@@ -80,13 +80,6 @@ on:
         required: false
         type: string
 
-      registry-user:
-        description: |
-          The name of your Jfrog service account with write access on your docker registry.
-          Could be stored in Vault (DOCKER_WRITER_USER_NAME secret key)
-        required: false
-        type: string
-
       push-image:
         description: |
           By default set to true, set it to false to have a dry run
@@ -95,10 +88,6 @@ on:
         type: string
 
     secrets:
-      registry-password:
-        description: |
-        required: true
-
       github-token:
         description: |
         required: true
@@ -197,12 +186,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      - name: 🔑 Docker Login
-        uses: docker/login-action@v2
+      - id: 🔑  Google cloud auth
+        name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v0
         with:
-          registry: ${{ env.DOCKER_IMAGE_REPOSITORY }}
-          username: _json_key_base64
-          password: ${{ env.DOCKER_WRITER_USER_TOKEN }} # pragma: allowlist secret
+          token_format: access_token
+          workload_identity_provider: projects/539750516957/locations/global/workloadIdentityPools/github-actions/providers/github-actions-provider
+          service_account: github-actions-service-account@nephos-334613.iam.gserviceaccount.com
+          access_token_lifetime: 300s
+      
+      - name: 🔑 Docker Login
+        run: |-
+          gcloud auth configure-docker \
+          ${{ env.DOCKER_IMAGE_REPOSITORY }}
 
       - name: 📝 Define image full name
         run: |-
