@@ -182,14 +182,6 @@ jobs:
       - name: ⬇️ Checkout
         uses: actions/checkout@v3
         
-      - id: auth
-        name: Authenticate with Google Cloud
-        uses: google-github-actions/auth@v0
-        with:
-          token_format: access_token
-          workload_identity_provider: principalSet://iam.googleapis.com/projects/539750516957/locations/global/workloadIdentityPools/github-actions/attribute.repository/nephosio/nephos
-          service_account: github-actions-service-account@nephos-334613.iam.gserviceaccount.com
-          access_token_lifetime: 300s
 
       - name: 🙈 Cache dependencies
         uses: actions/cache@v3
@@ -285,13 +277,25 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
       
-      - name: 🔑 Docker Login
-        uses: docker/login-action@v2
+      - id: auth
+        name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v0
         with:
-          registry: europe-west9-docker-docker.pkg.dev
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
-
+          token_format: access_token
+          workload_identity_provider: projects/539750516957/locations/global/workloadIdentityPools/github-actions/providers/github-actions-provider
+          service_account: github-actions-service-account@nephos-334613.iam.gserviceaccount.com
+          access_token_lifetime: 300s
+          
+      #- name: 🔑 Docker Login
+       # uses: docker/login-action@v2
+        #with:
+         # registry: europe-west9-docker-docker.pkg.dev
+          #username: oauth2accesstoken
+          #password: ${{ steps.auth.outputs.access_token }}
+      - name: 🔑 Docker Login
+        run: |-
+          gcloud auth configure-docker \
+          europe-west9-docker.pkg.dev
       - name: 📝 Define image full name
         run: |-
           if [[ "${{ env.DOCKER_IMAGE_FOLDER }}" == "" ]]; \
