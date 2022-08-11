@@ -96,13 +96,6 @@ on:
         required: false
         type: string
 
-      registry-user:
-        description: |
-          The name of your Jfrog service account with write access on your docker registry.
-          Could be stored in Vault (DOCKER_WRITER_USER_NAME secret key)
-        required: false
-        type: string
-
       push-image:
         description: |
           By default set to true, set it to false to have a dry run
@@ -129,10 +122,6 @@ on:
         type: string
 
     secrets:
-      registry-password:
-        description: |
-        required: true
-
       github-token:
         description: |
         required: true
@@ -156,8 +145,6 @@ jobs:
     name: Node - Docker build & Push
     env:
       DOCKER_IMAGE_REPOSITORY: ${{ inputs.docker-image-repository }}
-      DOCKER_WRITER_USER_NAME: ${{ inputs.registry-user }}
-      GAR_JSON_KEY: ${{ secrets.registry-password }}
       DOCKER_IMAGE_FOLDER: ${{ inputs.docker-image-folder }}
       IMAGE_NAME: ${{ inputs.docker-image-name }}
       DOCKER_BUILD_ARGS: ${{ inputs.docker-build-args }}
