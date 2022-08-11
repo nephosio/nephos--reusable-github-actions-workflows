@@ -295,7 +295,7 @@ jobs:
       - name: 🔑 Docker Login
         run: |-
           gcloud auth configure-docker \
-          europe-west9-docker.pkg.dev
+          europe-west1-docker.pkg.dev
       - name: 📝 Define image full name
         run: |-
           if [[ "${{ env.DOCKER_IMAGE_FOLDER }}" == "" ]]; \
